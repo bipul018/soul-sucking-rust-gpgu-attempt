@@ -1,0 +1,24 @@
+#version 460
+//#include "glsl.h"
+
+layout(local_size_x = 32, local_size_y = 1, local_size_z = 1) in;
+
+layout(set = 0, binding = 0) readonly buffer Input{
+  float val[];
+} inside;
+layout(set = 0, binding = 1) buffer Output{
+  float val[];
+} outside;
+layout(push_constant) uniform Size{
+  uint sz;
+} push;
+
+
+void main(){
+  uint inx = gl_GlobalInvocationID.x;
+  
+  if(inx < push.sz){
+    outside.val[inx] = 2 * inside.val[inx];
+  }
+
+}

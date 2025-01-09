@@ -1,0 +1,8 @@
+[package]
+name = "vrust"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+vulkanalia = { version = "=0.26.0", features = ["libloading", "provisional", "window"] }
+
