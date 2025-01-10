@@ -391,7 +391,7 @@ impl Context{
     }
 }
 
-#[derive(Clone)]
+#[derive(Copy, Clone)]
 pub struct DeviceF32Array{
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory,
