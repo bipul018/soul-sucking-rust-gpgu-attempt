@@ -30,8 +30,6 @@ pub struct Context{
     pub cmd_buff: vk::CommandBuffer,
     pub vis_buff_mem_type: u32, // Type index used for cpu visible memory types (for now also device local considering compatibility with my device only
     pub loc_buff_mem_type: u32, // Type index used for gpu local memory types
-    pub desc_layout: vk::DescriptorSetLayout,
-    pub pipe_layout: vk::PipelineLayout,
 }
 impl Drop for Context{
     fn drop(&mut self){
@@ -78,19 +76,8 @@ impl Context{
             return Ok((entry,inst));
         }
 
-        // A option of instance wrapper and option of device wrapper that use drop
-        //struct ODevice{
-        //    inst: vulkanalia::Instance,
-        //    dev: vulkanalia::Device,
-        //    phy_dev: vk::PhysicalDevice,
-        //    comp_fam: u32,
-        //}
-        //fn new_device(inst: vulkanalia::Instance) -> VkResult<ODevice>{
         fn new_device(inst: vulkanalia::Instance) -> VkResult<(vulkanalia::Instance, vulkanalia::Device, vk::PhysicalDevice, u32)>{
-        //fn new_device() -> VkResult<(vulkanalia::Instance, vulkanalia::Device, vk::PhysicalDevice, u32)>{
-            //let (entry,inst) = new_instance()?;
             println!("Going to create the gpu device ...");
-            //let mut this = ODevice::default();
             //find the physical device
             let phy_devs = unsafe{match inst.enumerate_physical_devices(){
                 Ok(ok) => Ok(ok),
@@ -110,8 +97,6 @@ impl Context{
             // TODO::setup at least the validation layer and it's extensions
 
             // find the compute queue family
-
-            //let compute_fam = {
             let comp_fam = {
                 let queue_fam_props = unsafe{inst.get_physical_device_queue_family_properties(phy_dev)};
                 let mut fam_inx:i32 = -1;
@@ -129,13 +114,11 @@ impl Context{
             };
             println!("Compute family index was found for the selected physical device to be at index {}.", comp_fam);
 
-
             let queue_priorities = [1.0f32];
             let queue_infos = [vk::DeviceQueueCreateInfo::builder().
                 queue_family_index(comp_fam).
                 queue_priorities(&queue_priorities)];
 
-            //let dev = unsafe{inst.
             let dev = unsafe{match inst.
                 create_device(
                     phy_devs[0],
@@ -165,8 +148,6 @@ impl Context{
                 comp_queue: def!(),
                 cmd_pool: def!(),
                 cmd_buff: def!(),
-                desc_layout: def!(),
-                pipe_layout: def!(),
                 loc_buff_mem_type: def!(),
                 vis_buff_mem_type: def!(),
             }
@@ -260,40 +241,6 @@ impl Context{
             unsafe{this.dev.destroy_buffer(tbuff, None)};
 
         }
-
-
-        // Create descriptor set layout/ pipeline layout
-        this.desc_layout = unsafe{this.dev.create_descriptor_set_layout
-        (&vk::DescriptorSetLayoutCreateInfo::builder().
-            // TODO:: Find if different types of descriptors need to be set for readonly/readwrite glsl buffers
-            bindings(&[
-                vk::DescriptorSetLayoutBinding::builder().
-                    binding(0).
-                    descriptor_type(vk::DescriptorType::STORAGE_BUFFER).
-                    descriptor_count(1).
-                    stage_flags(vk::ShaderStageFlags::COMPUTE),
-                vk::DescriptorSetLayoutBinding::builder().
-                    binding(1).
-                    descriptor_type(vk::DescriptorType::STORAGE_BUFFER).
-                    descriptor_count(1).
-                    stage_flags(vk::ShaderStageFlags::COMPUTE)]),
-            None)?};
-        println!("Descriptor set layout was created!");
-
-
-        defer!(s, s.dev.destroy_descriptor_set_layout(s.desc_layout, None));
-        
-        this.pipe_layout = unsafe{this.dev.
-            create_pipeline_layout(
-                &vk::PipelineLayoutCreateInfo::builder().
-                    set_layouts(&[this.desc_layout]).
-                    push_constant_ranges(&[vk::PushConstantRange::builder().
-                        stage_flags(vk::ShaderStageFlags::COMPUTE).
-                        offset(0).
-                        size(4)]),
-                None)?};
-        println!("The pipeline layout was created!");
-        defer!(s, s.dev.destroy_pipeline_layout(s.pipe_layout, None));
 
         return Ok(this);
     }
