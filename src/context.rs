@@ -49,7 +49,6 @@ impl Drop for Context{
 impl Context{
     pub fn new() -> VkResult<Context>{
 
-        use vulkanalia::bytecode::Bytecode;
         use vulkanalia::prelude::v1_0;
         use vulkanalia::prelude::v1_1;
         use vulkanalia::prelude::v1_2;
@@ -182,7 +181,6 @@ impl Context{
                         }
                     }
                 );
-                //this.cleanup.push(|s| { unsafe{$expr} });
             }
         }
         defer!(s, s.inst.destroy_instance(None));
@@ -196,7 +194,7 @@ impl Context{
             create_command_pool(&vk::CommandPoolCreateInfo::builder().
                 queue_family_index(this.comp_fam).
                 flags(vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER),
-                None).unwrap()};
+                None)?};
         println!("Created the command pool also!");
         defer!(s, s.dev.destroy_command_pool(s.cmd_pool, None));
 
@@ -204,7 +202,7 @@ impl Context{
             allocate_command_buffers(&vk::CommandBufferAllocateInfo::builder().
                 level(vk::CommandBufferLevel::PRIMARY).
                 command_buffer_count(1).
-                command_pool(this.cmd_pool)).unwrap()}[0];
+                command_pool(this.cmd_pool))?}[0];
         println!("Command buffer allocated!");
 
         // Find the memory types by creating dummy buffers
@@ -279,7 +277,7 @@ impl Context{
                     descriptor_type(vk::DescriptorType::STORAGE_BUFFER).
                     descriptor_count(1).
                     stage_flags(vk::ShaderStageFlags::COMPUTE)]),
-            None).unwrap()};
+            None)?};
         println!("Descriptor set layout was created!");
 
 
@@ -293,7 +291,7 @@ impl Context{
                         stage_flags(vk::ShaderStageFlags::COMPUTE).
                         offset(0).
                         size(4)]),
-                None).unwrap()};
+                None)?};
         println!("The pipeline layout was created!");
         defer!(s, s.dev.destroy_pipeline_layout(s.pipe_layout, None));
 
@@ -393,6 +391,7 @@ impl Context{
     }
 }
 
+#[derive(Clone)]
 pub struct DeviceF32Array{
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory,

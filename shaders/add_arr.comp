@@ -10,14 +10,15 @@ layout(set = 0, binding = 1) buffer Output{
   float val[];
 } outside;
 layout(push_constant) uniform Size{
-  uint sz;
+  uint szi;
+  uint szo;
 } push;
 
 
 void main(){
   uint inx = gl_GlobalInvocationID.x;
   
-  if(inx < push.sz){
+  if((inx < push.szi)&&(inx < push.szo)){
     outside.val[inx] = 2 * inside.val[inx];
   }
 

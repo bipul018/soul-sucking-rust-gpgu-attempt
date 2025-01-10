@@ -9,6 +9,7 @@ use vulkanalia::vk;
 mod context;
 use context::Context;
 
+mod process_unit;
 // A struct for making `program` entities
 
 fn main(){
@@ -104,6 +105,7 @@ fn main(){
     unsafe{cxt.dev.cmd_bind_descriptor_sets(cxt.cmd_buff, vk::PipelineBindPoint::COMPUTE,
         cxt.pipe_layout, 0, &[desc_set], &([] as [u32;0]))};
     unsafe{cxt.dev.cmd_push_constants(cxt.cmd_buff, cxt.pipe_layout, vk::ShaderStageFlags::COMPUTE, 0, &arr_len.to_ne_bytes())};
+    unsafe{cxt.dev.cmd_push_constants(cxt.cmd_buff, cxt.pipe_layout, vk::ShaderStageFlags::COMPUTE, 4, &arr_len.to_ne_bytes())};
     unsafe{cxt.dev.cmd_bind_pipeline(cxt.cmd_buff, vk::PipelineBindPoint::COMPUTE, compute_pipe)};
     unsafe{cxt.dev.cmd_dispatch(cxt.cmd_buff, arr_len, 1, 1)};
     unsafe{cxt.dev.end_command_buffer(cxt.cmd_buff).unwrap()};
