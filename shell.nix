@@ -5,7 +5,7 @@ in
 pkgs.mkShell {
   buildInputs = [
     #pkgs.clang
-    #pkgs.gdb
+    pkgs.gdb
     #pkgs.glibc
     #pkgs.criterion # test framework library for C/C++
 
