@@ -325,15 +325,25 @@ impl Context{
                 Err(err)
             }
         }?;
+        // Free buff and vk_mem if binding failed
+        match unsafe{self.dev.bind_buffer_memory(buff, vk_mem, 0)}{
+            Ok(_) => {},
+            Err(err) => {
+                unsafe{self.dev.destroy_buffer(buff, None)};
+                unsafe{self.dev.free_memory(vk_mem, None)};
+                return Err(err);
+            }
+        }
         return Ok(DeviceF32Array{
             buffer: buff,
             memory: vk_mem,
             is_dev_local,
             count,
+            size: (buff_size as usize),
         });
     }
     // Function that copies the given float values into the gpu representing memory
-    pub fn write_array(&self, array: &mut DeviceF32Array, values: &[f32]) {
+    pub fn write_array(&self, array: &DeviceF32Array, values: &[f32]) {
         let buff_size = (array.count * 4) as u64;
         let mem_map = unsafe{self.dev.map_memory(array.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
         // Ensure the pointer is aligned correctly for f32
@@ -353,7 +363,7 @@ impl Context{
         unsafe{self.dev.unmap_memory(array.memory)};
     }
     // Function that copies the given float values from the gpu representing memory
-    pub fn read_array(&self, array: &mut DeviceF32Array) -> Vec<f32> {
+    pub fn read_array(&self, array: &DeviceF32Array) -> Vec<f32> {
         let buff_size = (array.count * 4) as u64;
         let mem_map = unsafe{self.dev.map_memory(array.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
         // Ensure the pointer is aligned correctly for f32
@@ -384,9 +394,10 @@ impl Context{
 }
 
 pub struct DeviceF32Array{
-    buffer: vk::Buffer,
-    memory: vk::DeviceMemory,
-    is_dev_local: bool,
-    count: usize, // count is in f32 units
+    pub buffer: vk::Buffer,
+    pub memory: vk::DeviceMemory,
+    pub is_dev_local: bool,
+    pub count: usize, // count is in f32 units
+    pub size: usize
 }
 
