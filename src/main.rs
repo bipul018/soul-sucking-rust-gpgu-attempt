@@ -72,62 +72,9 @@ fn main(){
     let arr_len:u32 = 32;
     let buff1 = cxt.new_array(arr_len as usize, false).unwrap();
     let buff2 = cxt.new_array(arr_len as usize, false).unwrap();
-    //let buff_size:u64 = (arr_len as u64) * 4;
-    //let buff1 = unsafe{cxt.dev.create_buffer(&vk::BufferCreateInfo::builder().
-    //    usage(vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC).
-    //    sharing_mode(vk::SharingMode::EXCLUSIVE).
-    //    size(buff_size),
-    //    None).unwrap()};
-    //let buff2 = unsafe{cxt.dev.create_buffer(&vk::BufferCreateInfo::builder().
-    //    usage(vk::BufferUsageFlags::STORAGE_BUFFER | vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC).
-    //    sharing_mode(vk::SharingMode::EXCLUSIVE).
-    //    size(buff_size),
-    //    None).unwrap()};
-    //println!("Created input and output buffer objects");
-    
-    // Find memory type index, one requirement works for both
-    //let buff_mem_req = unsafe{cxt.dev.get_buffer_memory_requirements(buff1)};
-    //println!("The buffers have memory type bits {} and size {} and alignment {}",
-    //    buff_mem_req.memory_type_bits, buff_mem_req.size, buff_mem_req.alignment);
-//
-    //let buff_mem_inx = {
-    //    // TODO:: Later get the atomic transfer size if needed from device properties
-    //    let dev_mem_props = unsafe{cxt.inst.get_physical_device_memory_properties(cxt.phy_dev)};
-    //    let mem_type_flags = buff_mem_req.memory_type_bits;
-    //    let mem_props = vk::MemoryPropertyFlags::DEVICE_LOCAL | vk::MemoryPropertyFlags::HOST_VISIBLE;
-    //    let mut mem_inx : i32 = -1;
-    //    for inx in 0..dev_mem_props.memory_type_count as usize{
-    //        let is_type = ((1<<inx) & mem_type_flags) != 0;
-    //        let is_props = mem_props == (mem_props &
-    //            dev_mem_props.memory_types[inx].property_flags);
-    //        if is_type && is_props{
-    //            mem_inx = inx as i32;
-    //            break;
-    //        }
-    //    }
-    //    if mem_inx < 0{
-    //        panic!("A suitable memory type was not found for the buffers!");
-    //    }
-    //    mem_inx as u32
-    //};
     println!("The memory index chosen for buffers is {}", cxt.vis_buff_mem_type);
     
-    // Allocate the memory for both buffers (maybe separately)
-    //let buff1_vk_mem = unsafe{cxt.dev.allocate_memory(
-    //    &vk::MemoryAllocateInfo::builder().
-    //        allocation_size(buff_size).
-    //        memory_type_index(buff_mem_inx),
-    //    None).unwrap()};
-    //let buff2_vk_mem = unsafe{cxt.dev.allocate_memory(
-    //    &vk::MemoryAllocateInfo::builder().
-    //        allocation_size(buff_size).
-    //        memory_type_index(buff_mem_inx),
-    //    None).unwrap()};
     println!("Memories for buffer were allocated!");
-
-    // unsafe{cxt.dev.bind_buffer_memory(buff1, buff1_vk_mem, 0).unwrap()};
-    // unsafe{cxt.dev.bind_buffer_memory(buff2, buff2_vk_mem, 0).unwrap()};
-    // println!("The buffers were bound to respective memories");
 
     // Bind descriptors to buffers
     unsafe{cxt.dev.update_descriptor_sets(&[
@@ -171,22 +118,14 @@ fn main(){
             -1.0, -2.0,  -3.0,  -4.0,  -5.0,  -6.0,  -7.0,  -8.0,
             -9.0,  -10.0,  -11.0,  -12.0,  -13.0,  -14.0,  -15.0,  -16.0,
         ] as [f32;32];
-        //let mem_map = unsafe{cxt.dev.map_memory(buff1.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
-
         cxt.write_array(&buff1, &input_data);
         println!("Mapped memory of buff1");
-        //write_to_c_pointer(mem_map as *mut u8, &input_data);
-        //unsafe{cxt.dev.unmap_memory(buff1.memory)};
     }
     // Print the data too
     {
-        //let mem_map = unsafe{cxt.dev.map_memory(buff1.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
-        //println!("Mapped memory to {}", mem_map as u64);
-
         //let arr = read_from_c_pointer(mem_map as *mut u8, arr_len as usize);
         let arr = cxt.read_array(&buff1);
         println!("The array was \n{:?}", arr);
-        //unsafe{cxt.dev.unmap_memory(buff1.memory)};
     }   
     
     // Play command buffer
@@ -199,38 +138,20 @@ fn main(){
     
     // Print data
     {
-        //let mem_map = unsafe{cxt.dev.map_memory(buff2.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
-        //println!("Mapped the answer memory to {}", mem_map as u64);
-
         //let arr = read_from_c_pointer(mem_map as *mut u8, arr_len as usize);
         let arr = cxt.read_array(&buff2);
         println!("The answer was \n{:?}", arr);
-        //unsafe{cxt.dev.unmap_memory(buff2.memory)};
     }   
     // Print the data too
     {
-        //let mem_map = unsafe{cxt.dev.map_memory(buff1.memory, 0, buff_size, vk::MemoryMapFlags::empty()).unwrap()};
-        //println!("Mapped original memory to {}", mem_map as u64);
-
-        //let arr = read_from_c_pointer(mem_map as *mut u8, arr_len as usize);
         let arr = cxt.read_array(&buff1);
         println!("The original array is \n{:?}", arr);
-        //unsafe{cxt.dev.unmap_memory(buff1.memory)};
     }   
     
 
     unsafe{cxt.dev.device_wait_idle().unwrap()};
     cxt.drop_array(&buff2);
     cxt.drop_array(&buff1);
-    //unsafe{cxt.dev.free_memory(buff2.memory, None)};
-    //unsafe{cxt.dev.free_memory(buff1.memory, None)};
-    //unsafe{cxt.dev.destroy_buffer(buff2, None)};
-    //unsafe{cxt.dev.destroy_buffer(buff1, None)};
     unsafe{cxt.dev.destroy_descriptor_pool(desc_pool, None)};
     unsafe{cxt.dev.destroy_pipeline(compute_pipe, None)};
-    //unsafe{dev.destroy_pipeline_layout(cxt.pipe_layout, None)};
-    //unsafe{dev.destroy_descriptor_set_layout(desc_layout, None)};
-    //unsafe{dev.destroy_command_pool(cmd_pool, None)};
-    //unsafe{dev.destroy_device(None)};
-    //unsafe{inst.destroy_instance(None)};
 }
