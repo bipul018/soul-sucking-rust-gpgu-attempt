@@ -337,8 +337,8 @@ impl Context{
         unsafe{self.dev.destroy_buffer(array.buffer, None)};
     }
 }
-
-#[derive(Copy, Clone)]
+// Doesnot feel that right doing a default derive on this, but fk rust
+#[derive(Copy, Clone, Debug, Default)]
 pub struct DeviceF32Array{
     pub buffer: vk::Buffer,
     pub memory: vk::DeviceMemory,
