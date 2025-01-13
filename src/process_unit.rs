@@ -11,7 +11,7 @@ use vulkanalia::prelude::v1_2::*;
 use vulkanalia::prelude::v1_3::*;
 
 //#[derive(Default)]
-pub struct FactoryObjectBase<'a, 'b, T>{
+pub struct FactoryObjectBase<'a, 'b>{
     desc_pool: vk::DescriptorPool,
     desc_set: vk::DescriptorSet,
     //Needed because at writing of command buffer, need to set barriers (TODO:: Insert mode for when array is copied also)
@@ -25,17 +25,17 @@ pub struct FactoryObjectBase<'a, 'b, T>{
     scalars: Vec<u8>,
 
     // Fk rust, i cant just have 'all other except this default'
-    factory: Option<&'a Factory<'a, T>>,
+    factory: Option<&'a Factory<'a>>,
     //ctx: Option<&'a Context>,
 }
 
-impl<T> Drop for FactoryObjectBase<'_, '_, T>{
+impl Drop for FactoryObjectBase<'_, '_>{
     fn drop(&mut self){
         self.clean();
     }
 }
 
-impl<T> Default for FactoryObjectBase<'_, '_, T>{
+impl Default for FactoryObjectBase<'_, '_>{
     fn default() -> Self{
         Self{
             desc_pool: vk::DescriptorPool::null(),
@@ -48,18 +48,18 @@ impl<T> Default for FactoryObjectBase<'_, '_, T>{
     }
 }
 
-impl<'a,'b, T> FactoryObjectBase<'a,'b, T>{
+impl<'a,'b> FactoryObjectBase<'a,'b>{
     pub fn ctx(&self) -> Option<&'a Context>{ self.factory?.ctx }
     pub fn clean(&mut self){
 	match self.ctx(){
 	    None => {},
 	    Some(ctx) => {
                 // Only cleanup if not null for each
-                self.outputs.iter_mut().map(|arr|{
+                let _=self.outputs.iter_mut().map(|arr|{
                     ctx.drop_array(arr);
                     *arr = DeviceF32Array::default();
                 });
-                self.inputs.iter_mut().map(|oarr|{
+                let _=self.inputs.iter_mut().map(|oarr|{
                     *oarr = (None, 0);
                 });
                 if self.desc_pool != vk::DescriptorPool::null(){
@@ -70,7 +70,7 @@ impl<'a,'b, T> FactoryObjectBase<'a,'b, T>{
 	    }
 	}
     }
-    pub fn new(factory: &'a Factory<T>, input_sizes: &[u32], output_sizes: &[u32], scalar_count: usize) -> VkResult<Self>{
+    pub fn new(factory: &'a Factory, input_sizes: &[u32], output_sizes: &[u32], scalar_count: usize) -> VkResult<Self>{
         let mut this = Self::default();
         this.factory = Some(factory);
         //TODO:: Print a informative error
@@ -214,9 +214,9 @@ pub trait FactoryObject{
     // Provides the shader itself along with anything needed
     // This line happened because of fking rust. I cannot (in ways that a normal user should be able to do) ensure that Factory made with a type in mind only be used for that type. Fking have to use unsafe rust now. I swear after this basic version is completed i am quite likely quitting rust for good no matter if even god tells me to.
     //fn factory<'a>(ctx: &'a Context) -> VkResult<Factory<'a, Self>>;
-    fn factory<'a>(ctx: &'a Context) -> VkResult<Factory<'a,Self>>;
+    fn factory<'a>(ctx: &'a Context) -> VkResult<Factory<'a>>;
     // Just remember, the stupid crab tells me just a reverse thing and tells me to 'relax the type from being sized at all'
-    fn new(base_obj: FactoryObjectBase<Self>, knobs: &Self::Knobs) -> VkResult<Self>;
+    fn new(base_obj: FactoryObjectBase, knobs: &Self::Knobs) -> VkResult<Self> where Self: Sized;
 
     // Usage fxns
     // TODO:: Maybe it will be nicer to have a single fxn that takes in all needed arguments through another struct (like the Knobs) where one specifies all the necessary input arguments (like compulsory named parameters) and a command buffer and then it does everything like setting the arguments and calling setup_pre_cmd for the base object and then calling the dispatch. But for now will just have separate fxn that does everything separately ??
@@ -226,18 +226,18 @@ pub trait FactoryObject{
 
 
 //#[derive(Default)]
-pub struct Factory<'a, T>{
+pub struct Factory<'a>{
     pub desc_layout: vk::DescriptorSetLayout,
     pub pipe_layout: vk::PipelineLayout,
     pub pipeline: vk::Pipeline,
     
     // F*CK RUST, FU*K RUST, FUC* RUST, *UCK RUST
     // If I try to uncomment this below line, then i have to literally litter the whole code base with additional generic type T and still it won't compile at a point telling me nonsense "it cannot know the size of type at compile time" like wtf is the use of std::marker::PhantomData then. I just wanted to make sure that this factory object wouldnot be misused by intitializing for a type and producing for another type
-    _marker_for_assoc_type_of_product: std::marker::PhantomData<T>,
+    //_marker_for_assoc_type_of_product: std::marker::PhantomData<T>,
     ctx: Option<&'a Context>,
 }
 
-impl<T> Default for Factory<'_,T>{
+impl Default for Factory<'_>{
     fn default() -> Self{
         Self{
             desc_layout: vk::DescriptorSetLayout::null(),
@@ -247,12 +247,12 @@ impl<T> Default for Factory<'_,T>{
         }
     }
 }
-impl<T> Drop for Factory<'_,T>{
+impl Drop for Factory<'_>{
     fn drop(&mut self){
         self.clean();
     }
 }
-impl<'a, T> Factory<'a,T> where T: FactoryObject{
+impl<'a> Factory<'a>{
     pub fn clean(&mut self){
         match self.ctx{
 	    None => {},
@@ -274,7 +274,8 @@ impl<'a, T> Factory<'a,T> where T: FactoryObject{
 	}
     }
 
-    pub fn new(ctx: &'a Context, shader_code: &Bytecode) -> VkResult<Factory<'a,T>>{
+    // TODO:: FUK RUST, I wanted to make sure that T was defined for the whole type+impl, but noooo , now i have to somehow ensure that the type given at creation here is the same type used later on somehow
+    pub fn new<T>(ctx: &'a Context, shader_code: &Bytecode) -> VkResult<Factory<'a>>  where T: FactoryObject{
 
         let mut this = Self::default();
 	this.ctx = Some(ctx);
@@ -333,8 +334,9 @@ impl<'a, T> Factory<'a,T> where T: FactoryObject{
 	return Ok(this);
     }
 
+    // TODO:: FUK RUST, I wanted to make sure that T was defined for the whole type+impl, but noooo , now i have to somehow ensure that the type given at creation here is the same type used later on somehow
     // Will also take additional struct type that is directly forwarded to type T as arguments
-    pub fn produce(&self, knobs: &T::Knobs) -> VkResult<T> {
+    pub fn produce<T>(&self, knobs: &T::Knobs) -> VkResult<T>  where T: FactoryObject{
         // Assert that we do have context
         let ctx = match self.ctx{
             None => panic!("Need to have context to produce anything"),
