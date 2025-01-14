@@ -11,14 +11,14 @@ use vulkanalia::prelude::v1_2::*;
 use vulkanalia::prelude::v1_3::*;
 
 //#[derive(Default)]
-pub struct FactoryObjectBase<'a, 'b>{
+pub struct FactoryObjectBase<'a>{
     desc_pool: vk::DescriptorPool,
     desc_set: vk::DescriptorSet,
     //Needed because at writing of command buffer, need to set barriers (TODO:: Insert mode for when array is copied also)
     // TODO:: Also need to find out if inserting barriers will disturb when we are doing it after copying in same command submission
     // Second item is the expected size of array, need to be initialized at init time
     // TODO:: See if you can replace these vecs with some arrays with sizes, since these need not be modified once created 
-    inputs: Vec<(Option<&'b DeviceF32Array>, u32)>,
+    inputs: Vec<(Option<&'a DeviceF32Array>, u32)>,
     //inputs: Vec<Option<&'b DeviceF32Array>>,
     
     outputs: Vec<DeviceF32Array>,
@@ -29,13 +29,13 @@ pub struct FactoryObjectBase<'a, 'b>{
     //ctx: Option<&'a Context>,
 }
 
-impl Drop for FactoryObjectBase<'_, '_>{
+impl Drop for FactoryObjectBase<'_>{
     fn drop(&mut self){
         self.clean();
     }
 }
 
-impl Default for FactoryObjectBase<'_, '_>{
+impl Default for FactoryObjectBase<'_>{
     fn default() -> Self{
         Self{
             desc_pool: vk::DescriptorPool::null(),
@@ -48,7 +48,7 @@ impl Default for FactoryObjectBase<'_, '_>{
     }
 }
 
-impl<'a,'b> FactoryObjectBase<'a,'b>{
+impl<'a> FactoryObjectBase<'a>{
     pub fn ctx(&self) -> Option<&'a Context>{ self.factory?.ctx }
     pub fn clean(&mut self){
 	match self.ctx(){
@@ -113,7 +113,7 @@ impl<'a,'b> FactoryObjectBase<'a,'b>{
         return Ok(this);
     }
     // function to set a input array (also on descriptor)
-    pub fn write_input(&mut self, inx: usize, arr_ref: &'b DeviceF32Array){
+    pub fn write_input(&mut self, inx: usize, arr_ref: &'a DeviceF32Array){
         let ctx = self.ctx().unwrap(); // Should we signal error ??
         // Zero, assert that the length supplied in is matching
         assert_eq!(arr_ref.count as u32, self.inputs[inx].1,
@@ -194,7 +194,7 @@ impl<'a,'b> FactoryObjectBase<'a,'b>{
 }
 
 
-pub trait FactoryObject{
+pub trait FactoryObject<'a>{
     // These should be same for all instances
     const INPUT_ARRAY_COUNT: usize;
     const INPUT_SCALAR_COUNT: usize;
@@ -203,24 +203,24 @@ pub trait FactoryObject{
 
 
     // A static fxn that takes in the 'knob' struct and produces valuable information
-    type Knobs;
+    type Knobs :Copy;
     // Becauze fking rust is a fking dumb whiny little shit, i just cant return a nice static array whose sie can be determined at compile time just up ^^ there, now i have to use asserts like a common dynamic language
-    fn input_array_sizes(knobs: &Self::Knobs) -> Vec<u32>;
+    fn input_array_sizes(knobs: Self::Knobs) -> Vec<u32>;
 //[u32;Self::INPUT_ARRAY_COUNT];
-    fn output_array_sizes(knobs: &Self::Knobs) -> Vec<u32>;
+    fn output_array_sizes(knobs: Self::Knobs) -> Vec<u32>;
 //[u32;Self::OUTPUT_ARRAY_COUNT];
 
     // Generate factory using the generic parameter as self
     // Provides the shader itself along with anything needed
     // This line happened because of fking rust. I cannot (in ways that a normal user should be able to do) ensure that Factory made with a type in mind only be used for that type. Fking have to use unsafe rust now. I swear after this basic version is completed i am quite likely quitting rust for good no matter if even god tells me to.
     //fn factory<'a>(ctx: &'a Context) -> VkResult<Factory<'a, Self>>;
-    fn factory<'a>(ctx: &'a Context) -> VkResult<Factory<'a>>;
+    fn factory(ctx: &'a Context) -> VkResult<Factory<'a>>;
     // Just remember, the stupid crab tells me just a reverse thing and tells me to 'relax the type from being sized at all'
-    fn new(base_obj: FactoryObjectBase, knobs: &Self::Knobs) -> VkResult<Self> where Self: Sized;
+    fn new(base_obj: FactoryObjectBase<'a>, knobs: Self::Knobs) -> VkResult<Self> where Self: Sized;
 
     // Usage fxns
     // TODO:: Maybe it will be nicer to have a single fxn that takes in all needed arguments through another struct (like the Knobs) where one specifies all the necessary input arguments (like compulsory named parameters) and a command buffer and then it does everything like setting the arguments and calling setup_pre_cmd for the base object and then calling the dispatch. But for now will just have separate fxn that does everything separately ??
-    type Inputs;
+    type Inputs  : Copy;
     fn exec_cmd(&mut self, cmd_buf: &vk::CommandBuffer, args: Self::Inputs);
 }
 
@@ -275,7 +275,7 @@ impl<'a> Factory<'a>{
     }
 
     // TODO:: FUK RUST, I wanted to make sure that T was defined for the whole type+impl, but noooo , now i have to somehow ensure that the type given at creation here is the same type used later on somehow
-    pub fn new<T>(ctx: &'a Context, shader_code: &Bytecode) -> VkResult<Factory<'a>>  where T: FactoryObject{
+    pub fn new<T>(ctx: &'a Context, shader_code: &Bytecode) -> VkResult<Factory<'a>>  where T: FactoryObject<'a>{
 
         let mut this = Self::default();
 	this.ctx = Some(ctx);
@@ -336,7 +336,7 @@ impl<'a> Factory<'a>{
 
     // TODO:: FUK RUST, I wanted to make sure that T was defined for the whole type+impl, but noooo , now i have to somehow ensure that the type given at creation here is the same type used later on somehow
     // Will also take additional struct type that is directly forwarded to type T as arguments
-    pub fn produce<T>(&self, knobs: &T::Knobs) -> VkResult<T>  where T: FactoryObject{
+    pub fn produce<T>(&'a self, knobs: T::Knobs) -> VkResult<T>  where T: FactoryObject<'a>{
         // Assert that we do have context
         let ctx = match self.ctx{
             None => panic!("Need to have context to produce anything"),
@@ -344,7 +344,7 @@ impl<'a> Factory<'a>{
         };
         
         // first make the factory object base
-        let base_obj = FactoryObjectBase::new(self, &T::input_array_sizes(knobs)[0..], &T::output_array_sizes(knobs)[0..], T::INPUT_SCALAR_COUNT)?;
+        let base_obj = FactoryObjectBase::<'a>::new(self, &T::input_array_sizes(knobs)[0..], &T::output_array_sizes(knobs)[0..], T::INPUT_SCALAR_COUNT)?;
         // Then pass it into the factory object's new function
         return T::new(base_obj, knobs);
     }

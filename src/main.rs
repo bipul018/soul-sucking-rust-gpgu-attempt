@@ -22,12 +22,12 @@ use process_unit::FactoryObjectBase;
 //    println!("FUCK RUST. ITS NOT A 'CRAB' ITS UTTTERLY CRAP");
 //}
 
-struct MulBy2<'a,'b>{
-    pub base: &'a FactoryObjectBase<'a,'b>,
+struct MulBy2<'a>{
+    pub base: FactoryObjectBase<'a>,
     pub alen: u32,
 }
 
-impl MulBy2<'_,'_>{
+impl MulBy2<'_>{
     pub fn out(&self) -> &DeviceF32Array{
 	self.base.get_output(0)
     }
@@ -36,16 +36,17 @@ impl MulBy2<'_,'_>{
 
 
 // A static fxn that takes in the 'knob' struct and produces valuable information
-#[derive(Clone, Copy)]
+#[derive(Copy, Clone)]
 pub struct MulBy2InitArgs{
     pub arr_size: u32,
 }
 
+#[derive(Copy, Clone)]
 pub struct  MulBy2CallArgs<'a>{
     pub x_in: &'a DeviceF32Array,
 }
 
-impl<'a,'b> FactoryObject for MulBy2<'a,'b>{
+impl<'a> FactoryObject<'a> for MulBy2<'a>{
     const INPUT_ARRAY_COUNT: usize = 1;
     const INPUT_SCALAR_COUNT: usize = 1;
     const OUTPUT_ARRAY_COUNT: usize = 1;
@@ -56,19 +57,19 @@ impl<'a,'b> FactoryObject for MulBy2<'a,'b>{
     fn input_array_sizes(knobs: Self::Knobs) -> Vec<u32>{ vec![knobs.arr_size] }
     fn output_array_sizes(knobs: Self::Knobs) -> Vec<u32>{ vec![knobs.arr_size] }
 
-    fn factory<'c>(ctx: &'c Context) -> VkResult<Factory<'c>> {
+    fn factory(ctx: &'a Context) -> VkResult<Factory<'a>> {
 	use vulkanalia::bytecode::Bytecode;
 	let code = Bytecode::new(include_bytes!("../shaders/add_arr.comp.spv")).unwrap();
 	return Factory::new::<Self>(ctx, &code);
     }
-    fn new(base_obj: &FactoryObjectBase, knobs: Self::Knobs) -> VkResult<Self>{
+    fn new(base_obj: FactoryObjectBase<'a>, knobs: Self::Knobs) -> VkResult<Self>{
 	Ok(Self{
 	    base: base_obj,
 	    alen: knobs.arr_size,
 	})
     }
-    type Inputs<'c> = MulBy2CallArgs<'c>;
-    fn exec_cmd(&mut self, cmd_buf: &vk::CommandBuffer, args: &Self::Inputs<'b>) {
+    type Inputs = MulBy2CallArgs<'a>;
+    fn exec_cmd(&mut self, cmd_buf: &vk::CommandBuffer, args: Self::Inputs) {
 
 	use vulkanalia::prelude::v1_0::*;
 	use vulkanalia::prelude::v1_1::*;
@@ -130,7 +131,7 @@ fn main(){
 
     // Command buffer recording
     unsafe{ctx.dev.begin_command_buffer(ctx.cmd_buff, &vk::CommandBufferBeginInfo::builder()).unwrap()};
-    obj_2x.exec_cmd(&ctx.cmd_buff, &MulBy2CallArgs{
+    obj_2x.exec_cmd(&ctx.cmd_buff, MulBy2CallArgs{
 	x_in : &buff_in,
     });
     unsafe{ctx.dev.end_command_buffer(ctx.cmd_buff).unwrap()};
