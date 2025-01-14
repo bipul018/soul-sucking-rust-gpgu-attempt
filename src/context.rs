@@ -68,10 +68,12 @@ extern "system" fn debug_callback(
         panic!("ERROR: ({:?}) {}", type_, message);
     } else if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::WARNING {
         println!("WARNING: ({:?}) {}", type_, message);
-    } else if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::INFO {
-        //println!(INFO: "({:?}) {}", type_, message);
     } else {
-        //println!("TRACE: ({:?}) {}", type_, message);
+        if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::INFO {
+            //println!("INFO: ({:?}) {}", type_, message);
+        } else {
+            //println!("TRACE: ({:?}) {}", type_, message);
+        }
     }
 
     vk::FALSE
@@ -107,12 +109,39 @@ impl Context{
 		layers.push(VALIDATION_LAYER.as_ptr());
 		extensions.push(vk::EXT_DEBUG_UTILS_EXTENSION.name.as_ptr());
 	    }
+            let mut inst_info = vk::InstanceCreateInfo::builder().
+		application_info(&app_info).
+		enabled_layer_names(&layers).
+                enabled_extension_names(&extensions);
+
+            // Enable extra validation features if debug mode
+
+
+            let mut validation_features =  vk::ValidationFeaturesEXT::builder().
+                enabled_validation_features(&[
+                    vk::ValidationFeatureEnableEXT::SYNCHRONIZATION_VALIDATION,
+                    // TODO:: Fix why this is not working yet
+                    //vk::ValidationFeatureEnableEXT::DEBUG_PRINTF,
+                    vk::ValidationFeatureEnableEXT::BEST_PRACTICES,
+                    //vk::ValidationFeatureEnableEXT::GPU_ASSISTED,
+                ]);
+
+            
+            let mut debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+                .message_severity(vk::DebugUtilsMessageSeverityFlagsEXT::all())
+                .message_type(
+                    vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                        | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                        | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE,
+                )
+                .user_callback(Some(debug_callback));
+            if VALIDATION_ENABLED {
+                inst_info = inst_info.push_next(&mut validation_features);
+                inst_info = inst_info.push_next(&mut debug_info);
+            }
+
             let inst = unsafe{entry.
-                create_instance(&vk::InstanceCreateInfo::builder().
-		    application_info(&app_info).
-		    enabled_layer_names(&layers).
-                    enabled_extension_names(&extensions),
-                    None)?};
+                create_instance(&inst_info, None)?};
             println!("Yes, the instance was created !!");
             return Ok((entry,inst));
         }
@@ -121,11 +150,12 @@ impl Context{
         fn new_messenger(inst: vulkanalia::Instance) -> (vulkanalia::Instance, vk::DebugUtilsMessengerEXT){
             let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
                 .message_severity(vk::DebugUtilsMessageSeverityFlagsEXT::all())
+                //.flags(vk::DebugUtilsMessengerCreateFlagsEXT)
                 .message_type(
+                    //vk::DebugUtilsMessageTypeFlagsEXT::all()
                     vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
-                        | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
-                        | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
-                        //| vk::DebugUtilsMessageTypeFlagsEXT::SYNCHRONIZATION
+                    | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                    | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
                 )
                 .user_callback(Some(debug_callback));
             let messenger = unsafe{ inst.create_debug_utils_messenger_ext(&debug_info, None) }.unwrap();
@@ -406,8 +436,8 @@ messenger,
     }
     // Function that frees a array
     pub fn drop_array(&self, array: &DeviceF32Array) {
-        unsafe{self.dev.free_memory(array.memory, None)};
         unsafe{self.dev.destroy_buffer(array.buffer, None)};
+        unsafe{self.dev.free_memory(array.memory, None)};
     }
 }
 // Doesnot feel that right doing a default derive on this, but fk rust
