@@ -52,18 +52,24 @@ impl Default for FactoryObjectBase<'_>{
 impl<'a> FactoryObjectBase<'a>{
     pub fn ctx(&self) -> Option<&'a Context>{ self.factory?.ctx }
     pub fn clean(&mut self){
+        //println!("Going to drop the factory made object\n{:#?}", self);
 	match self.ctx(){
 	    None => {},
 	    Some(ctx) => {
+                //println!("Almost dropped the factory made object");
                 // Only cleanup if not null for each
-                let _=self.outputs.iter_mut().map(|arr|{
-                    println!("Dropping array {:#?}", arr);
-                    ctx.drop_array(arr);
-                    *arr = DeviceF32Array::default();
-                });
-                let _=self.inputs.iter_mut().map(|oarr|{
-                    *oarr = (None, 0);
-                });
+
+                // I cannot just map the thing as map is lazy and so wont execute until collect, but again i cannot collect map because i wont be mapping to anything ?? 
+                for i in 0..self.outputs.len(){
+                    //println!("Dropping array {:#?}", self.outputs[i]);
+                    ctx.drop_array(&self.outputs[i]);
+                    self.outputs[i] = DeviceF32Array::default();
+                }
+                
+
+                self.inputs = self.inputs.iter_mut().map(|oarr|{
+                    (None, 0)
+                }).collect();
                 if self.desc_pool != vk::DescriptorPool::null(){
                     unsafe{ctx.dev.destroy_descriptor_pool(self.desc_pool, None)};
                     self.desc_pool = vk::DescriptorPool::null();

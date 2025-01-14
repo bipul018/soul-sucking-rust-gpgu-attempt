@@ -22,9 +22,10 @@ use process_unit::FactoryObjectBase;
 //    println!("FUCK RUST. ITS NOT A 'CRAB' ITS UTTTERLY CRAP");
 //}
 
+#[derive(Debug)]
 struct MulBy2<'a>{
-    pub base: FactoryObjectBase<'a>,
     pub alen: u32,
+    pub base: FactoryObjectBase<'a>,
 }
 
 impl MulBy2<'_>{
@@ -76,9 +77,13 @@ impl<'a> FactoryObject<'a> for MulBy2<'a>{
 	use vulkanalia::prelude::v1_2::*;
 	use vulkanalia::prelude::v1_3::*;
 
+	//println!("This is just at the start of exec_cmd : {:#?}", self);
+	
 	self.base.write_input(0, args.x_in);
 	self.base.write_scalar(0, ScalarArgVal::ArrayLen(args.x_in));
+	//println!("This is just before executing setup_pre_cmd in exec_cmd : {:#?}", self);
 	self.base.setup_pre_cmd(cmd_buf);
+	//println!("This is just after executing setup_pre_cmd in exec_cmd : {:#?}", self);
         let ctx = self.base.ctx().unwrap(); // Should we signal error ??
 	// calc optimal dispatch count
 	const LOCAL_SIZE_X:u32 = 64;
@@ -183,12 +188,13 @@ fn main(){
 	unsafe{ctx.dev.device_wait_idle().unwrap()};
 	
     }
-
-
-
-
     unsafe{ctx.dev.device_wait_idle().unwrap()};
+    // Print everything once
+
+    //println!("The obj_2x is \n{:#?}", obj_2x);
+    //println!("The buff_in is \n{:#?}", buff_in);
     ctx.drop_array(&buff_in);
+
 }
 
 
