@@ -113,10 +113,11 @@ fn main(){
     //let mul_2er = DevOperation::new(&cxt, 1, &vec![PushConstType::ArrayLen, PushConstType::ArrayLen], &Bytecode::new(include_bytes!("../shaders/add_arr.comp.spv")).unwrap()).unwrap();
 
 
-    let fac_2x = Scalex::factory(&ctx).unwrap();
+    let scale_factory = Scalex::factory(&ctx).unwrap();
     
     // allocate input buffer
     let arr_len:u32 = 32;
+    // var x
     let buff_in = ctx.new_array(arr_len as usize, false).unwrap();
     // Write the data
     {
@@ -132,16 +133,29 @@ fn main(){
     }
 
 
-    let mut obj_2x = fac_2x.produce::<Scalex>(ScalexInitArgs{
+    // scalar1 
+    let mut do2x = scale_factory.produce::<Scalex>(ScalexInitArgs{
 	arr_size: arr_len
     }).unwrap();
+    // scalar2
+    let mut do3x = scale_factory.produce::<Scalex>(ScalexInitArgs{
+	arr_size: arr_len
+    }).unwrap();    
 
     // Command buffer recording
     unsafe{ctx.dev.begin_command_buffer(ctx.cmd_buff, &vk::CommandBufferBeginInfo::builder()).unwrap()};
-    obj_2x.exec_cmd(&ctx.cmd_buff, ScalexCallArgs{
+    
+    // First y = 2x
+    do2x.exec_cmd(&ctx.cmd_buff, ScalexCallArgs{
 	x_in : &buff_in,
-	factor: 3.0,
+	factor: 2.0,
     });
+    // Then z = 3y
+    do3x.exec_cmd(&ctx.cmd_buff, ScalexCallArgs{
+	x_in : &do2x.out(),
+	factor: 3.0,
+    });    
+
     unsafe{ctx.dev.end_command_buffer(ctx.cmd_buff).unwrap()};
     println!("Recorded the command buffers with {} elements in the array", arr_len);
 
@@ -162,21 +176,17 @@ fn main(){
 	// Wait
 	unsafe{ctx.dev.device_wait_idle().unwrap()};
 	
-	// Print data
+	// Print data x,y,z
 	{
-            //let arr = read_from_c_pointer(mem_map as *mut u8, arr_len as usize);
-            let arr = ctx.read_array(obj_2x.out());
-            println!("The answer was \n{:?}", arr);
-	}   
-	// Print the data too
-	{
-            let arr = ctx.read_array(&buff_in);
-            println!("The original array is \n{:?}", arr);
+            println!("x=\n{:?}", ctx.read_array(&buff_in));
+	    println!("y=\n{:?}", ctx.read_array(do2x.out()));
+	    println!("z=\n{:?}", ctx.read_array(do3x.out()));
 	}
-	// Write data of buff2 into buff1
+	
+	// x = z
 	unsafe{ctx.dev.begin_command_buffer(ctx.copy_cmd_buff, &vk::CommandBufferBeginInfo::builder()).unwrap()};
 	unsafe{ctx.dev.cmd_copy_buffer
-	       (ctx.copy_cmd_buff, obj_2x.out().buffer, buff_in.buffer,
+	       (ctx.copy_cmd_buff, do3x.out().buffer, buff_in.buffer,
 		&[vk::BufferCopy{src_offset : 0,
 			     dst_offset : 0,
 			     size : buff_in.size as u64}]
@@ -185,7 +195,6 @@ fn main(){
 	unsafe{ctx.dev.queue_submit(ctx.comp_queue,
 				    &[vk::SubmitInfo::builder().command_buffers(&[ctx.copy_cmd_buff])],
 				    vk::Fence::null()).unwrap()};
-	println!("Copied buff2->buff1 in the command buffer");
 	println!("\n-------------------------------------------------------\n");
 	// Wait
 	unsafe{ctx.dev.device_wait_idle().unwrap()};
