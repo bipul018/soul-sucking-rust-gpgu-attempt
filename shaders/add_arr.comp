@@ -11,6 +11,7 @@ layout(set = 0, binding = 1) buffer Output{
 } outside;
 layout(push_constant) uniform Size{
   uint N;
+  float factor;
 } push;
 
 
@@ -18,7 +19,7 @@ void main(){
   uint inx = gl_GlobalInvocationID.x;
   
   if(inx < push.N){
-    outside.val[inx] = 2 * inside.val[inx];
+    outside.val[inx] = push.factor * inside.val[inx];
   }
 
 }

@@ -23,12 +23,12 @@ use process_unit::FactoryObjectBase;
 //}
 
 #[derive(Debug)]
-struct MulBy2<'a>{
+struct Scalex<'a>{
     pub alen: u32,
     pub base: FactoryObjectBase<'a>,
 }
 
-impl MulBy2<'_>{
+impl Scalex<'_>{
     pub fn out(&self) -> &DeviceF32Array{
 	self.base.get_output(0)
     }
@@ -38,22 +38,23 @@ impl MulBy2<'_>{
 
 // A static fxn that takes in the 'knob' struct and produces valuable information
 #[derive(Copy, Clone)]
-pub struct MulBy2InitArgs{
+pub struct ScalexInitArgs{
     pub arr_size: u32,
 }
 
 #[derive(Copy, Clone)]
-pub struct  MulBy2CallArgs<'a>{
+pub struct  ScalexCallArgs<'a>{
     pub x_in: &'a DeviceF32Array,
+    pub factor: f32,
 }
 
-impl<'a> FactoryObject<'a> for MulBy2<'a>{
+impl<'a> FactoryObject<'a> for Scalex<'a>{
     const INPUT_ARRAY_COUNT: usize = 1;
-    const INPUT_SCALAR_COUNT: usize = 1;
+    const INPUT_SCALAR_COUNT: usize = Self::INPUT_SCALAR_TYPES.len();
     const OUTPUT_ARRAY_COUNT: usize = 1;
-    const INPUT_SCALAR_TYPES: &'static [ScalarArgType] = &[ScalarArgType::ArrayLen];
+    const INPUT_SCALAR_TYPES: &'static [ScalarArgType] = &[ScalarArgType::ArrayLen, ScalarArgType::F32];
 
-    type Knobs = MulBy2InitArgs;
+    type Knobs = ScalexInitArgs;
  
     fn input_array_sizes(knobs: Self::Knobs) -> Vec<u32>{ vec![knobs.arr_size] }
     fn output_array_sizes(knobs: Self::Knobs) -> Vec<u32>{ vec![knobs.arr_size] }
@@ -69,7 +70,7 @@ impl<'a> FactoryObject<'a> for MulBy2<'a>{
 	    alen: knobs.arr_size,
 	})
     }
-    type Inputs = MulBy2CallArgs<'a>;
+    type Inputs = ScalexCallArgs<'a>;
     fn exec_cmd(&mut self, cmd_buf: &vk::CommandBuffer, args: Self::Inputs) {
 
 	use vulkanalia::prelude::v1_0::*;
@@ -81,6 +82,7 @@ impl<'a> FactoryObject<'a> for MulBy2<'a>{
 	
 	self.base.write_input(0, args.x_in);
 	self.base.write_scalar(0, ScalarArgVal::ArrayLen(args.x_in));
+	self.base.write_scalar(1, ScalarArgVal::F32(args.factor));
 	//println!("This is just before executing setup_pre_cmd in exec_cmd : {:#?}", self);
 	self.base.setup_pre_cmd(cmd_buf);
 	//println!("This is just after executing setup_pre_cmd in exec_cmd : {:#?}", self);
@@ -111,7 +113,7 @@ fn main(){
     //let mul_2er = DevOperation::new(&cxt, 1, &vec![PushConstType::ArrayLen, PushConstType::ArrayLen], &Bytecode::new(include_bytes!("../shaders/add_arr.comp.spv")).unwrap()).unwrap();
 
 
-    let fac_2x = MulBy2::factory(&ctx).unwrap();
+    let fac_2x = Scalex::factory(&ctx).unwrap();
     
     // allocate input buffer
     let arr_len:u32 = 32;
@@ -130,14 +132,15 @@ fn main(){
     }
 
 
-    let mut obj_2x = fac_2x.produce::<MulBy2>(MulBy2InitArgs{
+    let mut obj_2x = fac_2x.produce::<Scalex>(ScalexInitArgs{
 	arr_size: arr_len
     }).unwrap();
 
     // Command buffer recording
     unsafe{ctx.dev.begin_command_buffer(ctx.cmd_buff, &vk::CommandBufferBeginInfo::builder()).unwrap()};
-    obj_2x.exec_cmd(&ctx.cmd_buff, MulBy2CallArgs{
+    obj_2x.exec_cmd(&ctx.cmd_buff, ScalexCallArgs{
 	x_in : &buff_in,
+	factor: 3.0,
     });
     unsafe{ctx.dev.end_command_buffer(ctx.cmd_buff).unwrap()};
     println!("Recorded the command buffers with {} elements in the array", arr_len);
@@ -191,8 +194,6 @@ fn main(){
     unsafe{ctx.dev.device_wait_idle().unwrap()};
     // Print everything once
 
-    //println!("The obj_2x is \n{:#?}", obj_2x);
-    //println!("The buff_in is \n{:#?}", buff_in);
     ctx.drop_array(&buff_in);
 
 }

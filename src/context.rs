@@ -233,7 +233,7 @@ messenger,
         }
         defer!(s, s.inst.destroy_instance(None));
         #[cfg(debug_assertions)]
-        defer!(s, s.inst.destroy_debug_utils_messenger_ext(s.messenger, None));g
+        defer!(s, s.inst.destroy_debug_utils_messenger_ext(s.messenger, None));
         defer!(s, s.dev.destroy_device(None));
         
         this.comp_queue = unsafe{this.dev.get_device_queue(this.comp_fam, 0)};
