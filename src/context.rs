@@ -7,18 +7,22 @@ use vulkanalia::VkResult;
 use vulkanalia::vk;
 const VALIDATION_ENABLED: bool =
     cfg!(debug_assertions);
-
 use vulkanalia::prelude::v1_0::*;
 use vulkanalia::prelude::v1_1::*;
 use vulkanalia::prelude::v1_2::*;
 use vulkanalia::prelude::v1_3::*;
 const VALIDATION_LAYER: vk::ExtensionName = vk::ExtensionName::from_bytes(b"VK_LAYER_KHRONOS_validation\0");
-
+use vulkanalia::vk::ExtDebugUtilsExtension;
 
 // Make a struct, that setups everything except for the pipeline descriptorpool/set/buffer/memory
 
 pub struct Context{
     pub entry: vulkanalia::Entry,
+
+    #[cfg(debug_assertions)]
+    pub messenger: vk::DebugUtilsMessengerEXT,
+
+
     pub inst: vulkanalia::Instance,
     pub phy_dev: vk::PhysicalDevice,
     pub dev: vulkanalia::Device,
@@ -46,6 +50,32 @@ impl Drop for Context{
     }
 }
 
+use std::ffi::c_void;
+use std::ffi::CStr;
+
+#[cfg(debug_assertions)]
+extern "system" fn debug_callback(
+    severity: vk::DebugUtilsMessageSeverityFlagsEXT,
+    type_: vk::DebugUtilsMessageTypeFlagsEXT,
+    data: *const vk::DebugUtilsMessengerCallbackDataEXT,
+    _: *mut c_void,
+) -> vk::Bool32 {
+    let data = unsafe { *data };
+    let message = unsafe { CStr::from_ptr(data.message) }.to_string_lossy();
+
+    if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::ERROR {
+        panic!("ERROR: ({:?}) {}", type_, message);
+    } else if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::WARNING {
+        println!("WARNING: ({:?}) {}", type_, message);
+    } else if severity >= vk::DebugUtilsMessageSeverityFlagsEXT::INFO {
+        //println!(INFO: "({:?}) {}", type_, message);
+    } else {
+        //println!("TRACE: ({:?}) {}", type_, message);
+    }
+
+    vk::FALSE
+}
+
 impl Context{
     pub fn new() -> VkResult<Context>{
 
@@ -69,13 +99,36 @@ impl Context{
                 api_version(vk::make_version(1,3,0));
             // TODO:: Check if layers/extensions are available first
 
+	    let mut layers = Vec::new();
+	    let mut extensions = Vec::new();
+
+	    if VALIDATION_ENABLED {
+		layers.push(VALIDATION_LAYER.as_ptr());
+		extensions.push(vk::EXT_DEBUG_UTILS_EXTENSION.name.as_ptr());
+	    }
             let inst = unsafe{entry.
                 create_instance(&vk::InstanceCreateInfo::builder().
-                    application_info(&app_info).
-                    enabled_layer_names(&vec![VALIDATION_LAYER.as_ptr()]),
+		    application_info(&app_info).
+		    enabled_layer_names(&layers).
+                    enabled_extension_names(&extensions),
                     None)?};
             println!("Yes, the instance was created !!");
             return Ok((entry,inst));
+        }
+
+        #[cfg(debug_assertions)]
+        fn new_messenger(inst: vulkanalia::Instance) -> (vulkanalia::Instance, vk::DebugUtilsMessengerEXT){
+            let debug_info = vk::DebugUtilsMessengerCreateInfoEXT::builder()
+                .message_severity(vk::DebugUtilsMessageSeverityFlagsEXT::all())
+                .message_type(
+                    vk::DebugUtilsMessageTypeFlagsEXT::GENERAL
+                        | vk::DebugUtilsMessageTypeFlagsEXT::VALIDATION
+                        | vk::DebugUtilsMessageTypeFlagsEXT::PERFORMANCE
+                        //| vk::DebugUtilsMessageTypeFlagsEXT::SYNCHRONIZATION
+                )
+                .user_callback(Some(debug_callback));
+            let messenger = unsafe{ inst.create_debug_utils_messenger_ext(&debug_info, None) }.unwrap();
+            return (inst, messenger);
         }
 
         fn new_device(inst: vulkanalia::Instance) -> VkResult<(vulkanalia::Instance, vulkanalia::Device, vk::PhysicalDevice, u32)>{
@@ -125,7 +178,9 @@ impl Context{
                 create_device(
                     phy_devs[0],
                     &vk::DeviceCreateInfo::builder().
-                        queue_create_infos(&queue_infos),
+                        queue_create_infos(&queue_infos).
+			push_next(&mut vk::PhysicalDeviceVulkan13Features::builder()
+				  .synchronization2(true)),
                     None){
                         Ok(ok) => Ok(ok),
                         Err(err) => {
@@ -137,8 +192,13 @@ impl Context{
             return Ok((inst, dev, phy_dev, comp_fam));
         }
 
+        
+
         // new_device() will have destroyed instance on error
         let (entry, inst) = new_instance()?;
+        // Create messenger only on debug, on debug it will crash if fail
+        #[cfg(debug_assertions)]
+        let (inst, messenger) = new_messenger(inst);
         let (inst, dev, phy_dev, comp_fam) = new_device(inst)?;
         let mut this = {
             macro_rules! def{
@@ -146,6 +206,9 @@ impl Context{
             }
             Context{
                 entry, inst, dev, phy_dev, comp_fam,
+                #[cfg(debug_assertions)]
+messenger,
+
                 cleanup: def!(),
                 comp_queue: def!(),
                 cmd_pool: def!(),
