@@ -11,6 +11,7 @@ use vulkanalia::prelude::v1_2::*;
 use vulkanalia::prelude::v1_3::*;
 
 //#[derive(Default)]
+#[derive(Debug)]
 pub struct FactoryObjectBase<'a>{
     desc_pool: vk::DescriptorPool,
     desc_set: vk::DescriptorSet,
@@ -56,6 +57,7 @@ impl<'a> FactoryObjectBase<'a>{
 	    Some(ctx) => {
                 // Only cleanup if not null for each
                 let _=self.outputs.iter_mut().map(|arr|{
+                    println!("Dropping array {:#?}", arr);
                     ctx.drop_array(arr);
                     *arr = DeviceF32Array::default();
                 });
@@ -132,7 +134,7 @@ impl<'a> FactoryObjectBase<'a>{
                     offset(0).
                     range(arr_ref.size as u64).
                     buffer(arr_ref.buffer)])],
-                &([] as [vk::CopyDescriptorSet; 0]))};        
+                &([] as [vk::CopyDescriptorSet; 0]))};
     }
 
     // function to set a push constant (scalar)
@@ -186,10 +188,18 @@ impl<'a> FactoryObjectBase<'a>{
                 dependency_flags(vk::DependencyFlags::empty()).
                 buffer_memory_barriers(&buff_barrs)
         )};
+        unsafe{ctx.dev.cmd_bind_descriptor_sets
+            (*cmd_buf, vk::PipelineBindPoint::COMPUTE,
+                fact.pipe_layout,
+                0,
+                &[self.desc_set],
+                &[])};
         unsafe{ctx.dev.cmd_push_constants
                 (*cmd_buf, fact.pipe_layout, vk::ShaderStageFlags::COMPUTE, 0, &self.scalars)};
 	unsafe{ctx.dev.cmd_bind_pipeline
 	       (*cmd_buf, vk::PipelineBindPoint::COMPUTE, fact.pipeline)};
+        //println!("This is inside the factory object base's command recording : \n {:#?}", self);
+
     }
 }
 
@@ -226,6 +236,7 @@ pub trait FactoryObject<'a>{
 
 
 //#[derive(Default)]
+#[derive(Debug)]
 pub struct Factory<'a>{
     pub desc_layout: vk::DescriptorSetLayout,
     pub pipe_layout: vk::PipelineLayout,

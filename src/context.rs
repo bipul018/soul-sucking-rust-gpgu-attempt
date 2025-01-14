@@ -16,6 +16,7 @@ use vulkanalia::vk::ExtDebugUtilsExtension;
 
 // Make a struct, that setups everything except for the pipeline descriptorpool/set/buffer/memory
 
+#[derive(Debug)]
 pub struct Context{
     pub entry: vulkanalia::Entry,
 
