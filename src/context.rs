@@ -28,6 +28,8 @@ pub struct Context{
     pub comp_queue: vk::Queue,
     pub cmd_pool: vk::CommandPool,
     pub cmd_buff: vk::CommandBuffer,
+    pub copy_cmd_buff: vk::CommandBuffer,
+
     pub vis_buff_mem_type: u32, // Type index used for cpu visible memory types (for now also device local considering compatibility with my device only
     pub loc_buff_mem_type: u32, // Type index used for gpu local memory types
 }
@@ -148,6 +150,7 @@ impl Context{
                 comp_queue: def!(),
                 cmd_pool: def!(),
                 cmd_buff: def!(),
+		copy_cmd_buff: def!(),
                 loc_buff_mem_type: def!(),
                 vis_buff_mem_type: def!(),
             }
@@ -179,12 +182,16 @@ impl Context{
         println!("Created the command pool also!");
         defer!(s, s.dev.destroy_command_pool(s.cmd_pool, None));
 
-        this.cmd_buff = unsafe{this.dev.
+        //this.cmd_buff = unsafe{this.dev.
+	let cmd_buffs = unsafe{this.dev.
             allocate_command_buffers(&vk::CommandBufferAllocateInfo::builder().
                 level(vk::CommandBufferLevel::PRIMARY).
-                command_buffer_count(1).
-                command_pool(this.cmd_pool))?}[0];
-        println!("Command buffer allocated!");
+                command_buffer_count(2).
+                command_pool(this.cmd_pool))?};
+        println!("Command buffers were allocated!");
+	this.cmd_buff = cmd_buffs[0];
+	this.copy_cmd_buff = cmd_buffs[1];
+	
 
         // Find the memory types by creating dummy buffers
         {

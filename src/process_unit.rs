@@ -25,7 +25,7 @@ pub struct FactoryObjectBase<'a, 'b>{
     scalars: Vec<u8>,
 
     // Fk rust, i cant just have 'all other except this default'
-    factory: Option<&'a Factory<'a>>,
+    pub factory: Option<&'a Factory<'a>>,
     //ctx: Option<&'a Context>,
 }
 
